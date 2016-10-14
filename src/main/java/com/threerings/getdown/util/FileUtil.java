@@ -102,12 +102,25 @@ public class FileUtil extends com.samskivert.util.FileUtil
         InputStream packedJarIn = null;
         FileOutputStream extractedJarFileOut = null;
         JarOutputStream jarOutputStream = null;
+        FileOutputStream gunzippedPackFileOut = null;
+        File gunzipFile = null;
         try {
             extractedJarFileOut = new FileOutputStream(target);
             jarOutputStream = new JarOutputStream(extractedJarFileOut);
             packedJarIn = new FileInputStream(packedJar);
             if (packedJar.getName().endsWith(".gz")) {
+            /*
+         kac-: unpack gzipped to temporary file before feeding Pack200.Unpacker.
+               Some Unpacker implementations aborts abnormally if feed w/ corrupted
+               GZIPInputStream so we check stream( by gunzipping) before use in Unpacker.
+             */
                 packedJarIn = new GZIPInputStream(packedJarIn);
+                gunzipFile = new File(packedJar.getPath() + ".gunzip");
+                gunzippedPackFileOut = new FileOutputStream(gunzipFile);
+                StreamUtil.copy(packedJarIn, gunzippedPackFileOut);
+                packedJarIn.close();
+                gunzippedPackFileOut.close();
+                packedJarIn = new FileInputStream(gunzipFile);
             }
             Pack200.Unpacker unpacker = Pack200.newUnpacker();
             unpacker.unpack(packedJarIn, jarOutputStream);
@@ -121,6 +134,10 @@ public class FileUtil extends com.samskivert.util.FileUtil
             StreamUtil.close(jarOutputStream);
             StreamUtil.close(extractedJarFileOut);
             StreamUtil.close(packedJarIn);
+            StreamUtil.close(gunzippedPackFileOut);
+            if(gunzipFile != null){
+                gunzipFile.delete();
+            }
         }
     }
 
